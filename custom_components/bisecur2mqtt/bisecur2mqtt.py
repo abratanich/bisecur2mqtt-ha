@@ -36,7 +36,6 @@ try:
     config = Config()
 except Exception as e:
     log.error(f"Cannot load configuration from file {CONFIG}: {str(e)}")
-    raise RuntimeError("Configuration loading failed") from e
 
 MQTT_TOPIC_BASE = config.get("mqtt_topic_base", "bisecur2mqtt")
 MQTT_COMMAND_SUBTOPIC = "send_command"
@@ -436,7 +435,7 @@ def on_disconnect(mosq, userdata, rc):
     for set_door in DOORS_PORT:
         publish_to_mqtt(f"{set_door}/state", "offline")
         log.info(f"Performing actions for port: {set_door}")
-    time.sleep(10)
+    time.sleep(2)
 
 
 def clear_command_topic():
