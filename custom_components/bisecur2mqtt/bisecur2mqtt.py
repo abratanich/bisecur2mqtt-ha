@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import sys
@@ -399,7 +400,7 @@ def check_mcp_error(resp):
         return None
 
 
-def on_message(mosq, userdata, msg):
+def on_message(mosq, msg):
     log.info(f"---> Topic '{msg.topic}' received command '{msg.payload.decode('utf-8')}'")
     cmd = msg.payload.decode('utf-8')
     parts = cmd.split("_")
@@ -413,7 +414,7 @@ def on_message(mosq, userdata, msg):
         log.warning(f"Received invalid command format: {cmd}")
 
 
-def on_connect(mosq, userdata, flags, result_code):
+def on_connect(mosq, flags, result_code):
     sub_topic = f"{MQTT_TOPIC_BASE}/{MQTT_COMMAND_SUBTOPIC}/command"
     log.info(f"📡 Connected to MQTT broker. Subscribing to '{sub_topic}'")
     if MQTT_CLIENT_SUB is not None:
@@ -428,7 +429,7 @@ def on_connect(mosq, userdata, flags, result_code):
         return
 
 
-def on_disconnect(mosq, userdata, rc):
+def on_disconnect(mosq, rc):
     log.info(f"📡 MQTT session disconnected (rc={rc})!!!")
     clear_command_topic()
     for set_door in DOORS_PORT:
@@ -531,9 +532,6 @@ def periodic_door_status_check():
 
 def main():
     global MQTT_CLIENT_SUB, MQTT_CLIENT_PUB
-    # Init mqtt
-    userdata = {
-    }
 
     clientid = args.mqtt_clientid if args.mqtt_clientid else f"biscure2mqtt-{os.getpid()}"
     MQTT_CLIENT_SUB = paho.Client(f"{clientid}_sub", clean_session=False)
