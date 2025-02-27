@@ -5,9 +5,7 @@
   "config_flow": true,
   "documentation": "https://github.com/abratanich/bisecur2mqtt-ha",
   "requirements": [
-    "paho-mqtt==1.6.1",
-    "pysecur3",
-    "pysecur3_tools"
+    "paho-mqtt==1.6.1"
   ],
   "dependencies": [],
   "codeowners": ["@abratanich"],

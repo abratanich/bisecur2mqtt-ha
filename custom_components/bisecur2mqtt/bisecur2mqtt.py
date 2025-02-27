@@ -10,8 +10,9 @@ import json, ast
 import traceback
 import threading
 
-from pysecur3.client import MCPClient
-from pysecur3.MCP import MCPSetState
+sys.path.append(os.path.dirname(__file__))
+from .pysecur3.client import MCPClient
+from .pysecur3.MCP import MCPSetState
 
 VERSION = "0.7.3"
 DEBUG = False
