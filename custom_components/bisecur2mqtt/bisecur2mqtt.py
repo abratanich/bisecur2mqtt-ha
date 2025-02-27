@@ -536,7 +536,7 @@ def main():
     }
 
     clientid = args.mqtt_clientid if args.mqtt_clientid else f"biscure2mqtt-{os.getpid()}"
-    MQTT_CLIENT_SUB = paho.Client(f"{clientid}_sub", clean_session=True)
+    MQTT_CLIENT_SUB = paho.Client(f"{clientid}_sub", clean_session=False)
     MQTT_CLIENT_PUB = paho.Client(f"{clientid}_pub", clean_session=False)
 
     for set_door in DOORS_PORT:
