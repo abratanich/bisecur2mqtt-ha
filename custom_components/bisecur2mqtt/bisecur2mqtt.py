@@ -424,12 +424,12 @@ def on_connect(mosq, userdata, flags, result_code):
 
 
 def on_disconnect(mosq, userdata, rc):
-    log.info("📡MQTT session disconnected")
+    log.info(f"📡 MQTT session disconnected (rc={rc})!!!")
     clear_command_topic()
     for set_door in DOORS_PORT:
         publish_to_mqtt(f"{set_door}/state", "offline")
         log.info(f"Performing actions for port: {set_door}")
-    time.sleep(2)
+    time.sleep(10)
 
 
 def clear_command_topic():
