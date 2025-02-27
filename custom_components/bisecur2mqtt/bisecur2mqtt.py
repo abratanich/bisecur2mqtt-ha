@@ -531,7 +531,7 @@ def periodic_door_status_check():
         time.sleep(CHECK_INTERVAL)
 
 
-if __name__ == '__main__':
+def main():
     # Init mqtt
     userdata = {
     }
@@ -606,3 +606,7 @@ if __name__ == '__main__':
                 log.info(f"...joining spawned thread '{t.getName()}'")
                 t.join()
             log.info("Done!")
+
+
+if __name__ == '__main__':
+    main()
