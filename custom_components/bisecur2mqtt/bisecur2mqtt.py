@@ -534,7 +534,7 @@ def main():
     global MQTT_CLIENT_SUB, MQTT_CLIENT_PUB
 
     clientid = args.mqtt_clientid if args.mqtt_clientid else f"biscure2mqtt-{os.getpid()}"
-    MQTT_CLIENT_SUB = paho.Client(f"{clientid}_sub", clean_session=False)
+    MQTT_CLIENT_SUB = paho.Client(f"{clientid}_sub", clean_session=True)
     MQTT_CLIENT_PUB = paho.Client(f"{clientid}_pub", clean_session=False)
 
     for set_door in DOORS_PORT:
@@ -555,7 +555,7 @@ def main():
         MQTT_CLIENT_SUB.connect(args.mqtt_broker, args.mqtt_port, 60)
     except Exception as e:
         log.error(f"❌ MQTT connect failed: {e}")
-        MQTT_CLIENT_SUB = None  # Чтобы явно видеть ошибку
+        MQTT_CLIENT_SUB = None
         return
 
     MQTT_CLIENT_PUB.connect(args.mqtt_broker, args.mqtt_port, 60)
