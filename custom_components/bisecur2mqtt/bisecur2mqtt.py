@@ -10,68 +10,61 @@ import socket
 import json, ast
 import traceback
 import threading
+import argparse
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from pysecur3.client import MCPClient
 from pysecur3.MCP import MCPSetState
 
+LOGFORMAT = "%(asctime)s [%(filename)s:%(lineno)3s]  %(message)s"
+
+parser = argparse.ArgumentParser(description="Bisecur2MQTT Service")
+parser.add_argument("--bisecur_user", default="")
+parser.add_argument("--bisecur_pw", default="")
+parser.add_argument("--bisecur_ip", default="")
+parser.add_argument("--bisecur_mac", default="FF:FF:FF:FF:FF:FF")
+parser.add_argument("--src_mac", default="FF:FF:FF:FF:FF:FF")
+parser.add_argument("--mqtt_broker", default="localhost")
+parser.add_argument("--mqtt_port", type=int, default=1883)
+parser.add_argument("--mqtt_clientid", default="mqtt2bisecur")
+parser.add_argument("--mqtt_username", default="")
+parser.add_argument("--mqtt_password", default="")
+parser.add_argument("--mqtt_tls", type=lambda x: x.lower() == 'true', default=False)
+parser.add_argument("--mqtt_topic_base", default="bisecur2mqtt")
+parser.add_argument("--mqtt_topic_HA_discovery", default="homeassistant")
+parser.add_argument("--logfile", default="mqtt2bisecur.log")
+parser.add_argument("--logs", type=lambda x: x.lower() == 'true', default=False)
+args = parser.parse_args()
+
+LOG_TXT_ENABLED = args.logs
+LOGFILE = args.logfile
+MQTT_TOPIC_BASE = args.mqtt_topic_base
 VERSION = "0.7.3"
 DEBUG = False
-
-CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bisecur2mqtt.conf")
 gateway_lock = asyncio.Lock()
-
-
-class Config(object):
-    def __init__(self, filename=CONFIG):
-        self.config = {}
-        exec(compile(open(filename, "rb").read(), filename, 'exec'), self.config)
-
-    def get(self, key, default=None):
-        return self.config.get(key, default)
-
-
-try:
-    config = Config()
-except Exception as e:
-    log.error(f"Cannot load configuration from file {CONFIG}: {str(e)}")
-
-MQTT_TOPIC_BASE = config.get("mqtt_topic_base", "bisecur2mqtt")
 MQTT_COMMAND_SUBTOPIC = "send_command"
 MQTT_QOS = 0
-
 DOORS_PORT = [0, 1]
-
 CHECK_STATUS_START = False
-
 HEARTBEAT_INTERVAL = 10
 last_heartbeat = 0
-
 MQTT_CLIENT_SUB = None
 MQTT_CLIENT_PUB = None
 IS_ACTIVE_TASK = threading.Event()
 last_request_time = {}
-
 CLI = None
 LAST_DOOR_STATE = None
 POS_TRACKING_THREAD = None
 DO_EXIT_THREAD = False
-
 MAX_RETRIES = 10
 CHECK_INTERVAL = 20
-
 CMD_GET_TYPE = 49
 CMD_GET_STATE = 50
 CMD_SET_STATE = 51
 
-LOGFILE = config.get('logfile', 'bisecur2mqtt.log')
-LOGFORMAT = "%(asctime)s [%(filename)s:%(lineno)3s]  %(message)s"
-LOG_TXT_ENABLED = config.get('logs', True)
-
 for handler in log.root.handlers[:]:
     log.root.removeHandler(handler)
-
 if DEBUG:
     log.basicConfig(filename=LOGFILE, level=log.DEBUG, format=LOGFORMAT)
 else:
@@ -127,7 +120,7 @@ def do_command(cmd, set_door=None):
         IS_ACTIVE_TASK.clear()
 
 
-def publish_to_mqtt(topic, payload, topic_base=MQTT_TOPIC_BASE, qos=MQTT_QOS, retain=False, ts_only=False):
+def publish_to_mqtt(topic, payload, topic_base=args.mqtt_topic_base, qos=MQTT_QOS, retain=False, ts_only=False):
     if MQTT_CLIENT_SUB:
         if not isinstance(payload, str):
             payload = str(payload)
@@ -365,8 +358,8 @@ def do_door_action(action, set_door):
 
 
 def do_gw_login():
-    bisecur_user = config.get("bisecur_user")
-    bisecur_pw = config.get("bisecur_pw")
+    bisecur_user = args.bisecur_user
+    bisecur_pw = args.bisecur_pw
     log.debug(f"✅Logging in to Bisecur Gateway as user '{bisecur_user}'")
     CLI.login(bisecur_user, bisecur_pw)
     if CLI.token:
@@ -480,13 +473,13 @@ def init_ha_discovery(set_door):
                "position_closed": 0.0, "position_topic": f"{MQTT_TOPIC_BASE}/{set_door}/garage_door/position",
                "state_topic": f"{MQTT_TOPIC_BASE}/{set_door}/garage_door/state",
                "command_topic": f"{MQTT_TOPIC_BASE}/{MQTT_COMMAND_SUBTOPIC}/command"}
-    bisecur_mac = config.get("bisecur_mac", "").replace(':', '')
-    bisecur_ip = config.get("bisecur_ip", None)
+    bisecur_mac = args.bisecur_mac.replace(':', '')
+    bisecur_ip = args.bisecur_ip
     payload["connections"] = ["mac", bisecur_mac, "ip", bisecur_ip]
     payload["sw_version"] = VERSION
     _, payload["gw_hw_version"] = get_gw_version()
 
-    mqtt_topic_HA_discovery = config.get("mqtt_topic_HA_discovery", "homeassistant")
+    mqtt_topic_HA_discovery = args.mqtt_topic_HA_discovery
     publish_to_mqtt(f"cover/bisecur/{set_door}/config", json.dumps(payload), f"{mqtt_topic_HA_discovery}")
     publish_to_mqtt("attributes/system_version", VERSION)
     publish_to_mqtt("attributes/gw_ip_address", bisecur_ip)
@@ -499,9 +492,9 @@ def init_bisecur_gw(is_restart=False):
         CLI.logout()
 
     # Init Bisecur Gateway stuff
-    src_mac = config.get("src_mac", "FF:FF:FF:FF:FF:FF").replace(':', '')
-    bisecur_mac = config.get("bisecur_mac", "").replace(':', '')
-    bisecur_ip = config.get("bisecur_ip", None)
+    src_mac = args.src_mac.replace(':', '') if args.src_mac else "FFFFFFFFFFFF"
+    bisecur_mac = args.bisecur_mac.replace(':', '') if args.bisecur_mac else ""
+    bisecur_ip = args.bisecur_ip if args.bisecur_ip else None
     if not (bisecur_ip and bisecur_mac):
         log.error("ERROR: bisecur Gateway IP and MAC addresses must be specified in the config file")
     log.debug(f"INIT: Gateway IP: {bisecur_ip}, bisecur_mac: {bisecur_mac}, src_mac: {src_mac}")
@@ -535,7 +528,7 @@ def main():
     userdata = {
     }
 
-    clientid = config.get('mqtt_client_id', 'biscure2mqtt-{}'.format(os.getpid()))
+    clientid = args.mqtt_clientid if args.mqtt_clientid else f"biscure2mqtt-{os.getpid()}"
     MQTT_CLIENT_SUB = paho.Client(f"{clientid}_sub", clean_session=False)
     MQTT_CLIENT_PUB = paho.Client(f"{clientid}_pub", clean_session=False)
 
@@ -546,15 +539,15 @@ def main():
     MQTT_CLIENT_SUB.on_connect = on_connect
     MQTT_CLIENT_SUB.on_disconnect = on_disconnect
 
-    if config.get('mqtt_username') is not None:
-        MQTT_CLIENT_SUB.username_pw_set(config.get('mqtt_username'), config.get('mqtt_password'))
-        MQTT_CLIENT_PUB.username_pw_set(config.get('mqtt_username'), config.get('mqtt_password'))
+    if args.mqtt_username:
+        MQTT_CLIENT_SUB.username_pw_set(args.mqtt_username, args.mqtt_password)
+        MQTT_CLIENT_PUB.username_pw_set(args.mqtt_username, args.mqtt_password)
 
-    if config.get('mqtt_tls') is not None:
+    if args.mqtt_tls:
         MQTT_CLIENT_SUB.tls_set()
 
-    MQTT_CLIENT_SUB.connect(config.get('mqtt_broker', 'localhost'), int(config.get('mqtt_port', '1883')), 60)
-    MQTT_CLIENT_PUB.connect(config.get('mqtt_broker', 'localhost'), int(config.get('mqtt_port', '1883')), 60)
+    MQTT_CLIENT_SUB.connect(args.mqtt_broker, args.mqtt_port, 60)
+    MQTT_CLIENT_PUB.connect(args.mqtt_broker, args.mqtt_port, 60)
     log.info("📡 Connecting to MQTT broker")
 
     # Init Bisecur Gateway
