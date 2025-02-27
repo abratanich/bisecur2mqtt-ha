@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import sys
@@ -10,15 +11,16 @@ import json, ast
 import traceback
 import threading
 
-sys.path.append(os.path.dirname(__file__))
-from .pysecur3.client import MCPClient
-from .pysecur3.MCP import MCPSetState
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from pysecur3.client import MCPClient
+from pysecur3.MCP import MCPSetState
 
 VERSION = "0.7.3"
 DEBUG = False
 
 CONFIG = os.getenv('BISECUR2MQTT_CONFIG', 'bisecur2mqtt.conf')
-gateway_lock = threading.Lock()
+gateway_lock = asyncio.Lock()
 
 
 class Config(object):
@@ -33,8 +35,8 @@ class Config(object):
 try:
     config = Config()
 except Exception as e:
-    print("Cannot load configuration from file {}: {}".format(CONFIG, str(e)))
-    sys.exit(2)
+    log.error(f"Cannot load configuration from file {CONFIG}: {str(e)}")
+    raise RuntimeError("Configuration loading failed") from e
 
 MQTT_TOPIC_BASE = config.get("mqtt_topic_base", "bisecur2mqtt")
 MQTT_COMMAND_SUBTOPIC = "send_command"
@@ -84,11 +86,7 @@ if not any(isinstance(h, log.StreamHandler) for h in log.getLogger().handlers):
     stderrLogger.setFormatter(log.Formatter(LOGFORMAT))
     log.getLogger().addHandler(stderrLogger)
 
-#stderrLogger = log.StreamHandler()
-#stderrLogger.setFormatter(log.Formatter(LOGFORMAT))
-#log.getLogger().addHandler(stderrLogger)
-
-log.info("🚀 Запуск bisecur2mqtt...")
+log.info("🚀 Run bisecur2mqtt...")
 log.debug("DEBUG MODE")
 
 
@@ -343,7 +341,8 @@ def do_door_action(action, set_door):
                     counter = 0
                     log.debug(f"...Active thread count: {threading.activeCount()} ")
                     while POS_TRACKING_THREAD.is_alive() and counter < 15:
-                        log.debug(f"\t----> WAITING .... POS_TRACKING_THREAD.is_alive: {POS_TRACKING_THREAD.is_alive()}")
+                        log.debug(
+                            f"\t----> WAITING .... POS_TRACKING_THREAD.is_alive: {POS_TRACKING_THREAD.is_alive()}")
                         time.sleep(.7)
                         counter += 0.5
                 if POS_TRACKING_THREAD: log.debug(
@@ -506,12 +505,11 @@ def init_bisecur_gw(is_restart=False):
     bisecur_ip = config.get("bisecur_ip", None)
     if not (bisecur_ip and bisecur_mac):
         log.error("ERROR: bisecur Gateway IP and MAC addresses must be specified in the config file")
-        sys.exit(2)
     log.debug(f"INIT: Gateway IP: {bisecur_ip}, bisecur_mac: {bisecur_mac}, src_mac: {src_mac}")
     CLI = MCPClient(bisecur_ip, 4000, bytes.fromhex(src_mac), bytes.fromhex(bisecur_mac))
     login_token = do_gw_login()
     if not login_token:
-        sys.exit(2)
+        log.error("ERROR: login token")
 
     return login_token
 
@@ -608,4 +606,3 @@ if __name__ == '__main__':
                 log.info(f"...joining spawned thread '{t.getName()}'")
                 t.join()
             log.info("Done!")
-            sys.exit(0)
