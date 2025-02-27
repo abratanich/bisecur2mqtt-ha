@@ -10,5 +10,6 @@
     "pysecur3_tools"
   ],
   "dependencies": [],
-  "codeowners": ["@abratanich"]
+  "codeowners": ["@abratanich"],
+  "logo": "icons/logo.png"
 }
