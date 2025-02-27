@@ -19,7 +19,7 @@ from pysecur3.MCP import MCPSetState
 VERSION = "0.7.3"
 DEBUG = False
 
-CONFIG = os.getenv('BISECUR2MQTT_CONFIG', 'bisecur2mqtt.conf')
+CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bisecur2mqtt.conf")
 gateway_lock = asyncio.Lock()
 
 
