@@ -1,0 +1,6 @@
+{
+    "name": "Bisecur2MQTT",
+    "domains": ["homeassistant"],
+    "country": "GLOBAL",
+    "homeassistant": "2023.1.0"
+}

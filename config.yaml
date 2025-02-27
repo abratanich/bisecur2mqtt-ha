@@ -1,0 +1,11 @@
+name: "Bisecur2MQTT"
+version: "1.0.0"
+slug: "bisecur2mqtt"
+description: "Addon to run bisecur2mqtt as a service in Home Assistant"
+startup: "application"
+boot: "auto"
+watchdog: true
+hassio_api: true
+hassio_role: "admin"
+options: {}
+schema: {}

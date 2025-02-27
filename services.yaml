@@ -1,0 +1,6 @@
+start:
+  description: "Запустить сервис Bisecur2MQTT"
+stop:
+  description: "Остановить сервис Bisecur2MQTT"
+restart:
+  description: "Перезапустить сервис Bisecur2MQTT"

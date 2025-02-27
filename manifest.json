@@ -1,0 +1,14 @@
+{
+  "domain": "bisecur2mqtt",
+  "name": "Bisecur2MQTT",
+  "version": "1.1.0",
+  "config_flow": true,
+  "documentation": "https://github.com/abratanich/bisecur2mqtt-ha",
+  "requirements": [
+    "paho-mqtt==1.6.1",
+    "pysecur3",
+    "pysecur3_tools"
+  ],
+  "dependencies": [],
+  "codeowners": ["@abratanich"]
+}
