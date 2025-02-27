@@ -18,4 +18,4 @@ schema:
   mqtt_host: str
   mqtt_port: int
 init: false
-watchdog: true
+watchdog: false
