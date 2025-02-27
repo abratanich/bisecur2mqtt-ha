@@ -1,0 +1,8 @@
+bisecur2mqtt:
+  bisecur_user: "hauser"
+  bisecur_pw: "pass"
+  bisecur_ip: "192.168.68.19"
+  bisecur_mac: "80:1F:12:14:1E:57"
+  mqtt_username: "bisecur"
+  mqtt_password: "pass"
+  logs: false

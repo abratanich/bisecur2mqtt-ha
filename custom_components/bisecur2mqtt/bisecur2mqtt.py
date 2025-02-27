@@ -1,4 +1,3 @@
-import asyncio
 import os
 import re
 import sys
@@ -42,7 +41,7 @@ LOGFILE = args.logfile
 MQTT_TOPIC_BASE = args.mqtt_topic_base
 VERSION = "0.7.3"
 DEBUG = False
-gateway_lock = asyncio.Lock()
+gateway_lock = threading.Lock()
 MQTT_COMMAND_SUBTOPIC = "send_command"
 MQTT_QOS = 0
 DOORS_PORT = [0, 1]
@@ -147,10 +146,12 @@ def get_gw_version():
 
     while retries < max_retries:
         try:
-            with gateway_lock:  # 🔒 Блокируем доступ к Bisecur Gateway
+            # ✅ Используем `with` для автоматического управления Lock
+            with gateway_lock:
                 if CLI is None:
                     log.error("⚠️ Error: CLI not initialized")
                     return None, None
+
                 resp = CLI.get_gw_version()
             if not resp or not hasattr(resp.payload, "command") or not hasattr(resp.payload.command, "gw_version"):
                 log.error("❌ Error: Invalid response from `get_gw_version()`")
@@ -415,12 +416,16 @@ def on_message(mosq, userdata, msg):
 def on_connect(mosq, userdata, flags, result_code):
     sub_topic = f"{MQTT_TOPIC_BASE}/{MQTT_COMMAND_SUBTOPIC}/command"
     log.info(f"📡 Connected to MQTT broker. Subscribing to '{sub_topic}'")
-    MQTT_CLIENT_SUB.subscribe(sub_topic, MQTT_QOS)
-    clear_command_topic()
-    log.info(f"📡 Set state online")
-    for set_door in DOORS_PORT:
-        publish_to_mqtt(f"{set_door}/state", "online")
-        init_ha_discovery(set_door)
+    if MQTT_CLIENT_SUB is not None:
+        MQTT_CLIENT_SUB.subscribe(sub_topic, MQTT_QOS)
+        clear_command_topic()
+        log.info(f"📡 Set state online")
+        for set_door in DOORS_PORT:
+            publish_to_mqtt(f"{set_door}/state", "online")
+            init_ha_discovery(set_door)
+    else:
+        log.error("❌ ERROR: MQTT_CLIENT_SUB is None! Cannot subscribe!")
+        return
 
 
 def on_disconnect(mosq, userdata, rc):
@@ -525,12 +530,13 @@ def periodic_door_status_check():
 
 
 def main():
+    global MQTT_CLIENT_SUB, MQTT_CLIENT_PUB
     # Init mqtt
     userdata = {
     }
 
     clientid = args.mqtt_clientid if args.mqtt_clientid else f"biscure2mqtt-{os.getpid()}"
-    MQTT_CLIENT_SUB = paho.Client(f"{clientid}_sub", clean_session=False)
+    MQTT_CLIENT_SUB = paho.Client(f"{clientid}_sub", clean_session=True)
     MQTT_CLIENT_PUB = paho.Client(f"{clientid}_pub", clean_session=False)
 
     for set_door in DOORS_PORT:
@@ -547,7 +553,13 @@ def main():
     if args.mqtt_tls:
         MQTT_CLIENT_SUB.tls_set()
 
-    MQTT_CLIENT_SUB.connect(args.mqtt_broker, args.mqtt_port, 60)
+    try:
+        MQTT_CLIENT_SUB.connect(args.mqtt_broker, args.mqtt_port, 60)
+    except Exception as e:
+        log.error(f"❌ MQTT connect failed: {e}")
+        MQTT_CLIENT_SUB = None  # Чтобы явно видеть ошибку
+        return
+
     MQTT_CLIENT_PUB.connect(args.mqtt_broker, args.mqtt_port, 60)
     log.info("📡 Connecting to MQTT broker")
 
@@ -570,8 +582,15 @@ def main():
     log.info("✅ Thread periodic_door_status_check started successfully")
 
     while True:
+        log.info("🔄 Entering loop_forever()... (script should not exit)")
         try:
+            log.info(f"🔄 MQTT_CLIENT_SUB: {MQTT_CLIENT_SUB}")
+            log.info(f"🔄 MQTT_CLIENT_PUB: {MQTT_CLIENT_PUB}")
             MQTT_CLIENT_SUB.loop_forever()
+            log.error("❌ loop_forever() unexpectedly exited!")
+        except Exception as e:
+            log.error(f"❌ loop_forever() crashed: {e}")
+            traceback.print_exc()
         except socket.error:
             print("... doing sleep(5)")
             time.sleep(5)
