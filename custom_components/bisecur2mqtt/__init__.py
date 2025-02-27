@@ -11,7 +11,7 @@ DOMAIN = "bisecur2mqtt"
 def start_bisecur_service(config):
     script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bisecur2mqtt.py")
 
-    _LOGGER.info(f"Bisecur2MQTT: Запускаем bisecur2mqtt.py в фоне: {script_path}")
+    _LOGGER.warning(f"Bisecur2MQTT: Running bisecur2mqtt.py in fork: {script_path}")
 
     try:
         args = [
@@ -34,14 +34,14 @@ def start_bisecur_service(config):
         ]
 
         process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        _LOGGER.info(f"Bisecur2MQTT: bisecur2mqtt.py run с PID {process.pid}")
+        _LOGGER.warning(f"Bisecur2MQTT: bisecur2mqtt.py run с PID {process.pid}")
 
     except Exception as e:
         _LOGGER.error(f"Error starting bisecur2mqtt.py: {e}")
 
 
 async def async_setup(hass: HomeAssistant, config: dict):
-    _LOGGER.info("Bisecur2MQTT: async_setup() run...")
+    _LOGGER.warning("Bisecur2MQTT: async_setup() run...")
 
     if DOMAIN not in config:
         _LOGGER.error("Bisecur2MQTT: Missing configuration in configuration.yaml!")
