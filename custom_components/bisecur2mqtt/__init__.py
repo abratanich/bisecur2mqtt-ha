@@ -11,7 +11,7 @@ DOMAIN = "bisecur2mqtt"
 def start_bisecur_service(config):
     script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bisecur2mqtt.py")
 
-    _LOGGER.warning(f"Bisecur2MQTT: Running bisecur2mqtt.py in fork: {script_path}")
+    _LOGGER.warning(f"Bisecur2MQTT: Running bisecur2mqtt.py in pid: {script_path}")
 
     try:
         args = [
@@ -26,7 +26,7 @@ def start_bisecur_service(config):
             "--mqtt_clientid", str(config.get("mqtt_clientid", "mqtt2bisecur")),
             "--mqtt_username", str(config.get("mqtt_username", "bisecur")),
             "--mqtt_password", str(config.get("mqtt_password", "bisecur")),
-            "--mqtt_tls", str(config.get("mqtt_tls", None)),
+            "--mqtt_tls", str(config.get("mqtt_tls", False)),
             "--mqtt_topic_base", str(config.get("mqtt_topic_base", "bisecur2mqtt")),
             "--mqtt_topic_HA_discovery", str(config.get("mqtt_topic_HA_discovery", "homeassistant")),
             "--logfile", str(config.get("logfile", "/config/homeassistant/custom_components/bisecur2mqtt.log")),
