@@ -11,7 +11,7 @@ DOMAIN = "bisecur2mqtt"
 def start_bisecur_service(config):
     script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bisecur2mqtt.py")
 
-    _LOGGER.warning(f"Bisecur2MQTT: Running bisecur2mqtt.py in pid: {script_path}")
+    _LOGGER.info(f"Bisecur2MQTT: Running bisecur2mqtt.py in pid: {script_path}")
 
     try:
         args = [
@@ -26,15 +26,22 @@ def start_bisecur_service(config):
             "--mqtt_clientid", str(config.get("mqtt_clientid", "mqtt2bisecur")),
             "--mqtt_username", str(config.get("mqtt_username", "bisecur")),
             "--mqtt_password", str(config.get("mqtt_password", "bisecur")),
-            "--mqtt_tls", str(config.get("mqtt_tls", False)),
+            "--mqtt_tls", "true" if config.get("mqtt_tls", False) else "false",
             "--mqtt_topic_base", str(config.get("mqtt_topic_base", "bisecur2mqtt")),
             "--mqtt_topic_HA_discovery", str(config.get("mqtt_topic_HA_discovery", "homeassistant")),
-            "--logfile", str(config.get("logfile", "/config/homeassistant/custom_components/bisecur2mqtt.log")),
-            "--logs", str(config.get("logs", False))
+            "--logfile", str(config.get("logfile", "/config/custom_components/bisecur2mqtt/bisecur2mqtt.log")),
+            "--logs", "true" if config.get("logs", False) else "false"
         ]
-
         process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        _LOGGER.warning(f"Bisecur2MQTT: bisecur2mqtt.py run с PID {process.pid}")
+        _LOGGER.info(f"Bisecur2MQTT: bisecur2mqtt.py run с PID {process.pid}")
+        import time
+        time.sleep(3)
+
+        if process.poll() is not None:
+            stderr_output = process.stderr.read().decode()
+            _LOGGER.error(f"Bisecur2MQTT: Script crashed! Error output:\n{stderr_output}")
+        else:
+            _LOGGER.warning("Bisecur2MQTT: Script seems to be running fine.")
 
     except Exception as e:
         _LOGGER.error(f"Error starting bisecur2mqtt.py: {e}")

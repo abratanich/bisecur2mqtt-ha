@@ -400,7 +400,7 @@ def check_mcp_error(resp):
         return None
 
 
-def on_message(mosq, msg):
+def on_message(mosq,userdata, msg):
     log.info(f"---> Topic '{msg.topic}' received command '{msg.payload.decode('utf-8')}'")
     cmd = msg.payload.decode('utf-8')
     parts = cmd.split("_")
@@ -414,22 +414,23 @@ def on_message(mosq, msg):
         log.warning(f"Received invalid command format: {cmd}")
 
 
-def on_connect(mosq, flags, result_code):
-    sub_topic = f"{MQTT_TOPIC_BASE}/{MQTT_COMMAND_SUBTOPIC}/command"
-    log.info(f"📡 Connected to MQTT broker. Subscribing to '{sub_topic}'")
-    if MQTT_CLIENT_SUB is not None:
-        MQTT_CLIENT_SUB.subscribe(sub_topic, MQTT_QOS)
-        clear_command_topic()
-        log.info(f"📡 Set state online")
+def on_connect(client, userdata, flags, rc):
+    log.info(f"📡 Connected to MQTT broker (RC={rc}). Subscribing to command topic.")
+    if rc == 0:
+        sub_topic = f"{MQTT_TOPIC_BASE}/{MQTT_COMMAND_SUBTOPIC}/command"
+        client.subscribe(sub_topic, MQTT_QOS)
+        log.info(f"✅ Subscribed to {sub_topic}")
         for set_door in DOORS_PORT:
+            publish_to_mqtt(f"garage_door/{set_door}/state", "online")
             publish_to_mqtt(f"{set_door}/state", "online")
+            log.info(f"🚪 Set door {set_door} state to online")
+        for set_door in DOORS_PORT:
             init_ha_discovery(set_door)
     else:
-        log.error("❌ ERROR: MQTT_CLIENT_SUB is None! Cannot subscribe!")
-        return
+        log.error(f"❌ MQTT connection failed with code {rc}")
 
 
-def on_disconnect(mosq, rc):
+def on_disconnect(mosq,userdata, rc):
     log.info(f"📡 MQTT session disconnected (rc={rc})!!!")
     clear_command_topic()
     for set_door in DOORS_PORT:
@@ -533,8 +534,12 @@ def periodic_door_status_check():
 def main():
     global MQTT_CLIENT_SUB, MQTT_CLIENT_PUB
 
+    # Init mqtt
+    userdata = {
+    }
+
     clientid = args.mqtt_clientid if args.mqtt_clientid else f"biscure2mqtt-{os.getpid()}"
-    MQTT_CLIENT_SUB = paho.Client(f"{clientid}_sub", clean_session=True)
+    MQTT_CLIENT_SUB = paho.Client(f"{clientid}_sub", clean_session=False)
     MQTT_CLIENT_PUB = paho.Client(f"{clientid}_pub", clean_session=False)
 
     for set_door in DOORS_PORT:
