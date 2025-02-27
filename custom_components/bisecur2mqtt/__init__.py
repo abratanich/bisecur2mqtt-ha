@@ -23,24 +23,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.services.async_register(DOMAIN, "start", start_bisecur_service)
     hass.services.async_register(DOMAIN, "stop", stop_bisecur_service)
     hass.services.async_register(DOMAIN, "restart", restart_bisecur_service)
-    _LOGGER.info("Bisecur2MQTT интеграция загружена.")
+    _LOGGER.info("Bisecur2MQTT integration download.")
     return True
 
 async def start_bisecur_service(_=None):
-    """Запускаем bisecur2mqtt.py"""
     global service_task
     if service_task and not service_task.done():
-        _LOGGER.warning("Bisecur2MQTT уже запущен!")
+        _LOGGER.warning("Bisecur2MQTT running!")
         return
-    _LOGGER.info("Запуск Bisecur2MQTT...")
+    _LOGGER.info("Run Bisecur2MQTT...")
     loop = asyncio.get_event_loop()
-    service_task = loop.run_in_executor(None, os.system, "python3 /config/bisecur2mqtt/bisecur2mqtt.py")
+    service_task = loop.run_in_executor(None, os.system, "python3 /config/custom_components/bisecur2mqtt/bisecur2mqtt.py")
 
 async def stop_bisecur_service(_=None):
     global service_task
     if service_task:
         service_task.cancel()
-        _LOGGER.info("Bisecur2MQTT остановлен.")
+        _LOGGER.info("Bisecur2MQTT stopped.")
         service_task = None
 
 async def restart_bisecur_service(_=None):
@@ -52,5 +51,5 @@ async def check_service_status(_):
     if not watchdog_enabled:
         return
     if service_task is None or service_task.done():
-        _LOGGER.warning("Bisecur2MQTT не работает! Перезапуск...")
+        _LOGGER.warning("Bisecur2MQTT not working! Restarting...")
         await start_bisecur_service()
