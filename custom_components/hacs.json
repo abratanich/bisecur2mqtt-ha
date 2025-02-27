@@ -6,5 +6,6 @@
   "render_readme": true,
   "filename": "bisecur2mqtt.zip",
   "source": "https://github.com/abratanich/bisecur2mqtt-ha",
-  "zip_release": false
+  "zip_release": false,
+  "icon": "custom_components/bisecur2mqtt/icons/logo.png"
 }
