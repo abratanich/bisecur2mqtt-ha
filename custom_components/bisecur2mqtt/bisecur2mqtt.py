@@ -65,6 +65,7 @@ CMD_SET_STATE = 51
 
 for handler in log.root.handlers[:]:
     log.root.removeHandler(handler)
+
 if DEBUG:
     log.basicConfig(filename=LOGFILE, level=log.DEBUG, format=LOGFORMAT)
 else:
