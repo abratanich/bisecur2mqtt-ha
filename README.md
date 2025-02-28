@@ -67,3 +67,7 @@ bisecur2mqtt:
   mqtt_password: "bisecur"
   logs: true
 ```
+```
+mosquitto_sub -h 192.168.68.7 -u "bisecur" -P "bisecur" -t "bisecur2mqtt/#" -v
+mosquitto_pub -h 192.168.68.10 -p 1883 -u "bisecur" -P "bisecur" -t bisecur2mqtt/send_command/command -m "open_0"
+```
