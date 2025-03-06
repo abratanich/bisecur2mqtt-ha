@@ -4,9 +4,7 @@
   "version": "1.0.1",
   "config_flow": true,
   "documentation": "https://github.com/abratanich/bisecur2mqtt-ha",
-  "requirements": [
-    "paho-mqtt==1.6.1"
-  ],
+  "requirements": [],
   "dependencies": [],
   "codeowners": ["@abratanich"],
   "logo": "icons/logo.png"

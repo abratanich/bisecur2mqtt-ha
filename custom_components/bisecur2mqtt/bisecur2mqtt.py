@@ -1,9 +1,7 @@
-import asyncio
+import logging as log
 import os
 import re
 import sys
-import logging as log
-import paho.mqtt.client as paho
 import time
 from datetime import datetime
 import socket
@@ -13,9 +11,11 @@ import threading
 import argparse
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
 from pysecur3.client import MCPClient
 from pysecur3.MCP import MCPSetState
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "libs"))
+import paho.mqtt.client as paho
 
 LOGFORMAT = "%(asctime)s [%(filename)s:%(lineno)3s]  %(message)s"
 
@@ -400,7 +400,7 @@ def check_mcp_error(resp):
         return None
 
 
-def on_message(mosq,userdata, msg):
+def on_message(mosq, userdata, msg):
     log.info(f"---> Topic '{msg.topic}' received command '{msg.payload.decode('utf-8')}'")
     cmd = msg.payload.decode('utf-8')
     parts = cmd.split("_")
@@ -430,7 +430,7 @@ def on_connect(client, userdata, flags, rc):
         log.error(f"❌ MQTT connection failed with code {rc}")
 
 
-def on_disconnect(mosq,userdata, rc):
+def on_disconnect(mosq, userdata, rc):
     log.info(f"📡 MQTT session disconnected (rc={rc})!!!")
     clear_command_topic()
     for set_door in DOORS_PORT:
@@ -535,8 +535,7 @@ def main():
     global MQTT_CLIENT_SUB, MQTT_CLIENT_PUB
 
     # Init mqtt
-    userdata = {
-    }
+    userdata = {}
 
     clientid = args.mqtt_clientid if args.mqtt_clientid else f"biscure2mqtt-{os.getpid()}"
     MQTT_CLIENT_SUB = paho.Client(f"{clientid}_sub", clean_session=False)

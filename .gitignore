@@ -55,11 +55,11 @@ coverage.xml
 # Translations
 *.mo
 *.pot
-
+./.tmp
 # Django stuff:
 local_settings.py
 db.sqlite3
-
+./.homeassistant
 # Flask stuff:
 instance/
 .webassets-cache
@@ -108,3 +108,5 @@ venv.bak/
 # mypy
 .mypy_cache/
 /custom_components/bisecur2mqtt/config/
+/.homeassistant/
+/.tmp/
