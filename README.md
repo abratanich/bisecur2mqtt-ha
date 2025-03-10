@@ -66,6 +66,7 @@ bisecur2mqtt:
   mqtt_username: "bisecur"
   mqtt_password: "bisecur"
   logs: true
+  doors_port: [0, 1]
 ```
 ```
 mosquitto_sub -h 192.168.68.7 -u "bisecur" -P "bisecur" -t "bisecur2mqtt/#" -v

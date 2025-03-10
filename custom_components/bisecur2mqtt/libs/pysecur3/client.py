@@ -1,7 +1,7 @@
 import socket
 import logging
 
-from pysecur3.MCP import *
+from libs.pysecur3.MCP import *
 
 
 class MCPClient:

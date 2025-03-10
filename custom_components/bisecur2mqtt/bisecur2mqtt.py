@@ -1,21 +1,20 @@
+import argparse
+import ast
+import json
 import logging as log
 import os
 import re
-import sys
-import time
-from datetime import datetime
 import socket
-import json, ast
-import traceback
+import sys
 import threading
-import argparse
+import time
+import traceback
+from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from pysecur3.client import MCPClient
-from pysecur3.MCP import MCPSetState
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "libs"))
-import paho.mqtt.client as paho
+from libs.pysecur3.client import MCPClient
+from libs.pysecur3.MCP import MCPSetState
+import libs.mqtt.client as paho
 
 LOGFORMAT = "%(asctime)s [%(filename)s:%(lineno)3s]  %(message)s"
 
@@ -35,20 +34,16 @@ parser.add_argument("--mqtt_topic_base", default="bisecur2mqtt")
 parser.add_argument("--mqtt_topic_HA_discovery", default="homeassistant")
 parser.add_argument("--logfile", default="mqtt2bisecur.log")
 parser.add_argument("--logs", type=lambda x: x.lower() == 'true', default=False)
+parser.add_argument("--doors_port", nargs='+', type=int, default=[0])
 args = parser.parse_args()
 
 LOG_TXT_ENABLED = args.logs
 LOGFILE = args.logfile
 MQTT_TOPIC_BASE = args.mqtt_topic_base
-VERSION = "0.7.3"
+VERSION = "1.0.0"
 DEBUG = False
 gateway_lock = threading.Lock()
-MQTT_COMMAND_SUBTOPIC = "send_command"
-MQTT_QOS = 0
-DOORS_PORT = [0, 1]
 CHECK_STATUS_START = True
-HEARTBEAT_INTERVAL = 10
-last_heartbeat = 0
 MQTT_CLIENT_SUB = None
 MQTT_CLIENT_PUB = None
 IS_ACTIVE_TASK = threading.Event()
@@ -58,10 +53,7 @@ LAST_DOOR_STATE = None
 POS_TRACKING_THREAD = None
 DO_EXIT_THREAD = False
 MAX_RETRIES = 10
-CHECK_INTERVAL = 20
-CMD_GET_TYPE = 49
-CMD_GET_STATE = 50
-CMD_SET_STATE = 51
+CHECK_INTERVAL = 30
 
 for handler in log.root.handlers[:]:
     log.root.removeHandler(handler)
@@ -80,14 +72,14 @@ if not any(isinstance(h, log.StreamHandler) for h in log.getLogger().handlers):
     log.getLogger().addHandler(stderrLogger)
 
 log.info("🚀 Run bisecur2mqtt...")
-log.debug("DEBUG MODE")
+log.debug("🚀 DEBUG MODE")
 
 
 def do_command(cmd, set_door=None):
     global IS_ACTIVE_TASK
     IS_ACTIVE_TASK.set()
     cmd = cmd.lower().strip()
-    publish_to_mqtt(f"{MQTT_COMMAND_SUBTOPIC}/command", datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), ts_only=True)
+    publish_to_mqtt(f"send_command/command", datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), ts_only=True)
     resp = None
     try:
         if cmd in "get_door_state get_door_position":
@@ -112,7 +104,7 @@ def do_command(cmd, set_door=None):
         else:
             resp = f"Command '{cmd} is not recognised"
         check_mcp_error(resp)
-        publish_to_mqtt(f"{MQTT_COMMAND_SUBTOPIC}/response", resp)
+        publish_to_mqtt(f"send_command/response", resp)
     except Exception as ex:
         log.error(ex)
         traceback.print_exc()
@@ -121,7 +113,7 @@ def do_command(cmd, set_door=None):
         IS_ACTIVE_TASK.clear()
 
 
-def publish_to_mqtt(topic, payload, topic_base=args.mqtt_topic_base, qos=MQTT_QOS, retain=False, ts_only=False):
+def publish_to_mqtt(topic, payload, topic_base=args.mqtt_topic_base, qos=0, retain=False, ts_only=False):
     if MQTT_CLIENT_SUB:
         if not isinstance(payload, str):
             payload = str(payload)
@@ -138,16 +130,14 @@ def publish_to_mqtt(topic, payload, topic_base=args.mqtt_topic_base, qos=MQTT_QO
             log.error(ex)
 
     else:
-        log.warning(f"Ignoring publish to broker as 'MQTT_CLIENT_PUB' not initalised ({topic} {payload})")
+        log.warning(f"Ignoring publish to broker as 'MQTT_CLIENT_PUB' not initialised ({topic} {payload})")
 
 
 def get_gw_version():
     retries = 0
-    max_retries = 10
 
-    while retries < max_retries:
+    while retries < MAX_RETRIES:
         try:
-            # ✅ Используем `with` для автоматического управления Lock
             with gateway_lock:
                 if CLI is None:
                     log.error("⚠️ Error: CLI not initialized")
@@ -168,7 +158,7 @@ def get_gw_version():
             if "PORT_ERROR" in error_msg or "Code: 10" in error_msg:
                 retries += 1
                 wait_time = 2 * retries
-                log.warning(f"🔄Gateway busy (Retries {retries}/{max_retries}) - wait {wait_time} sec...")
+                log.warning(f"🔄Gateway busy (Retries {retries}/{MAX_RETRIES}) - wait {wait_time} sec...")
                 time.sleep(wait_time)
                 continue
 
@@ -214,13 +204,13 @@ def get_door_status(set_door):
 
     while retries < MAX_RETRIES:
         now = time.time()
-        if now - last_request_time[set_door] < 2:  # ⏳ Ограничиваем частоту запросов
+        if now - last_request_time[set_door] < 2:
             log.warning(f"⏳ Skipping get_door_status({set_door}) to prevent flooding.")
             time.sleep(1)
             continue
         if not gateway_lock.acquire(blocking=False):
             log.warning(f"🚧 Get door status({set_door}) skipped because lock is busy!")
-            return None, -1, None  # Возвращаем пустые данные
+            return None, -1, None
         try:
             if CLI is None:
                 log.error("⚠️ Error: CLI not initialized")
@@ -252,7 +242,7 @@ def get_door_status(set_door):
                 log.error(f"ERROR: {ex}")
             if "PORT_ERROR" in str(ex) or "Code: 10" in str(ex):
                 retries += 1
-                wait_time = 2
+                wait_time = 2.5
                 log.warning(f"🔄 Gateway busy (Retries {retries}/{MAX_RETRIES}) - wait {wait_time} sec...")
                 time.sleep(wait_time)
                 continue
@@ -261,7 +251,7 @@ def get_door_status(set_door):
             if check_broken_pipe(str(ex).lower()):
                 break
             if CLI.last_error and retries < 5:
-                log.error(f"🔴 ERROR CLI error found {CLI.last_error}")  # TODO!!!
+                log.error(f"🔴 ERROR CLI error found {CLI.last_error}")
                 time.sleep(.9)
                 retries += 1
             else:
@@ -374,7 +364,7 @@ def do_gw_login():
 
 
 def check_mcp_error(resp):
-    if CLI.last_error:  # TODO!!! Tidy up...
+    if CLI.last_error:
         log.error(f"--- 1. CLI.last_error: {CLI.last_error}")
         if hasattr(resp, "payload") and hasattr(resp.payload, "command") and hasattr(resp.payload.command,
                                                                                      "error_code"):
@@ -382,7 +372,7 @@ def check_mcp_error(resp):
                          "error": resp.payload.command.error_code.name}
         else:
             error_obj = {"error_code": "Unknown", "error": str(resp) if resp else "Unknown error"}
-        publish_to_mqtt(f"{MQTT_COMMAND_SUBTOPIC}/error", json.dumps(error_obj))
+        publish_to_mqtt(f"send_command/error", json.dumps(error_obj))
 
     elif resp and hasattr(resp, "resp.payload") and hasattr(resp,
                                                             "resp.payload.command_id") and resp.payload.command_id == 1 and hasattr(
@@ -392,11 +382,11 @@ def check_mcp_error(resp):
         # Error 12 is Permission Denied
         log.error(f"--- 2. CLI.last_error: {CLI.last_error}")
         error_obj = {"error_code": resp.payload.command.error_code.value, "error": resp.payload.command.error_code.name}
-        publish_to_mqtt(f"{MQTT_COMMAND_SUBTOPIC}/error", json.dumps(error_obj))
+        publish_to_mqtt(f"send_command/error", json.dumps(error_obj))
         return error_obj
 
     else:
-        publish_to_mqtt(f"{MQTT_COMMAND_SUBTOPIC}/error", "")
+        publish_to_mqtt(f"send_command/error", "")
         return None
 
 
@@ -405,7 +395,7 @@ def on_message(mosq, userdata, msg):
     cmd = msg.payload.decode('utf-8')
     parts = cmd.split("_")
     if re.match(r"^[a-zA-Z]+_\d+$", cmd):
-        if int(parts[1]) in DOORS_PORT:
+        if int(parts[1]) in args.doors_port:
             log.info(f"Door: {parts[1]} and Command: {parts[0]}")
             do_command(parts[0], parts[1])
         else:
@@ -417,14 +407,14 @@ def on_message(mosq, userdata, msg):
 def on_connect(client, userdata, flags, rc):
     log.info(f"📡 Connected to MQTT broker (RC={rc}). Subscribing to command topic.")
     if rc == 0:
-        sub_topic = f"{MQTT_TOPIC_BASE}/{MQTT_COMMAND_SUBTOPIC}/command"
-        client.subscribe(sub_topic, MQTT_QOS)
+        sub_topic = f"{MQTT_TOPIC_BASE}/send_command/command"
+        client.subscribe(sub_topic, 0)
         log.info(f"✅ Subscribed to {sub_topic}")
-        for set_door in DOORS_PORT:
+        for set_door in args.doors_port:
             publish_to_mqtt(f"garage_door/{set_door}/state", "online")
             publish_to_mqtt(f"{set_door}/state", "online")
             log.info(f"🚪 Set door {set_door} state to online")
-        for set_door in DOORS_PORT:
+        for set_door in args.doors_port:
             init_ha_discovery(set_door)
     else:
         log.error(f"❌ MQTT connection failed with code {rc}")
@@ -433,7 +423,7 @@ def on_connect(client, userdata, flags, rc):
 def on_disconnect(mosq, userdata, rc):
     log.info(f"📡 MQTT session disconnected (rc={rc})!!!")
     clear_command_topic()
-    for set_door in DOORS_PORT:
+    for set_door in args.doors_port:
         publish_to_mqtt(f"{set_door}/state", "offline")
         log.info(f"Performing actions for port: {set_door}")
     time.sleep(10)
@@ -441,7 +431,7 @@ def on_disconnect(mosq, userdata, rc):
 
 def clear_command_topic():
     log.info("📡 Clearing MQTT command topic...")
-    MQTT_CLIENT_PUB.publish(f"{MQTT_TOPIC_BASE}/{MQTT_COMMAND_SUBTOPIC}/command", "", qos=MQTT_QOS, retain=True)
+    MQTT_CLIENT_PUB.publish(f"{MQTT_TOPIC_BASE}/send_command/command", "", qos=0, retain=True)
 
 
 def restart_script():
@@ -480,7 +470,7 @@ def init_ha_discovery(set_door):
                "payload_close": "down", "payload_open": "up", "payload_stop": "impulse", "position_open": 100.0,
                "position_closed": 0.0, "position_topic": f"{MQTT_TOPIC_BASE}/{set_door}/garage_door/position",
                "state_topic": f"{MQTT_TOPIC_BASE}/{set_door}/garage_door/state",
-               "command_topic": f"{MQTT_TOPIC_BASE}/{MQTT_COMMAND_SUBTOPIC}/command"}
+               "command_topic": f"{MQTT_TOPIC_BASE}/send_command/command"}
     bisecur_mac = args.bisecur_mac.replace(':', '')
     bisecur_ip = args.bisecur_ip
     payload["connections"] = ["mac", bisecur_mac, "ip", bisecur_ip]
@@ -517,7 +507,7 @@ def init_bisecur_gw(is_restart=False):
 def periodic_door_status_check():
     while True:
         if not IS_ACTIVE_TASK.is_set():  # Проверяем, выполняется ли команда
-            for set_door in DOORS_PORT:
+            for set_door in args.doors_port:
                 log.info(f"🔄 Gate status survey -> {set_door}")
                 resp, position, state = get_door_status(set_door)
                 if resp is None:
@@ -541,7 +531,7 @@ def main():
     MQTT_CLIENT_SUB = paho.Client(f"{clientid}_sub", clean_session=False)
     MQTT_CLIENT_PUB = paho.Client(f"{clientid}_pub", clean_session=False)
 
-    for set_door in DOORS_PORT:
+    for set_door in args.doors_port:
         MQTT_CLIENT_SUB.will_set(f"{MQTT_TOPIC_BASE}/{set_door}/state", "offline", qos=0)
 
     MQTT_CLIENT_SUB.on_message = on_message
@@ -575,7 +565,7 @@ def main():
 
     if CHECK_STATUS_START:
         log.info("🚀 Check status doors start scripts...")
-        for set_door in DOORS_PORT:
+        for set_door in args.doors_port:
             get_door_status(set_door)
 
     log.info("🚀 Starting a flow to check the gate status...")
@@ -600,7 +590,7 @@ def main():
             log.info("Shutting down connections")
         finally:
             log.info("Exiting system. Changing MQTT state to 'offline'")
-            for set_door in DOORS_PORT:
+            for set_door in args.doors_port:
                 MQTT_CLIENT_PUB.publish(f"{MQTT_TOPIC_BASE}/{set_door}/state", "offline")
             MQTT_CLIENT_SUB.loop_stop()
             if CLI:

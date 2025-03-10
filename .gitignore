@@ -10,6 +10,7 @@ __pycache__/
 .idea
 # C extensions
 *.so
+./bisecur2mqtt.log
 
 # Distribution / packaging
 .Python

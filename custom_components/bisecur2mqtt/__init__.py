@@ -15,23 +15,24 @@ def start_bisecur_service(config):
 
     try:
         args = [
-            "python3", script_path,
-            "--bisecur_user", str(config.get("bisecur_user", "")),
-            "--bisecur_pw", str(config.get("bisecur_pw", "")),
-            "--bisecur_ip", str(config.get("bisecur_ip", "")),
-            "--bisecur_mac", str(config.get("bisecur_mac", "FF:FF:FF:FF:FF:FF")),
-            "--src_mac", str(config.get("src_mac", "FF:FF:FF:FF:FF:FF")),
-            "--mqtt_broker", str(config.get("mqtt_broker", "core-mosquitto")),
-            "--mqtt_port", str(config.get("mqtt_port", 1883)),
-            "--mqtt_clientid", str(config.get("mqtt_clientid", "mqtt2bisecur")),
-            "--mqtt_username", str(config.get("mqtt_username", "bisecur")),
-            "--mqtt_password", str(config.get("mqtt_password", "bisecur")),
-            "--mqtt_tls", "true" if config.get("mqtt_tls", False) else "false",
-            "--mqtt_topic_base", str(config.get("mqtt_topic_base", "bisecur2mqtt")),
-            "--mqtt_topic_HA_discovery", str(config.get("mqtt_topic_HA_discovery", "homeassistant")),
-            "--logfile", str(config.get("logfile", "/config/custom_components/bisecur2mqtt/bisecur2mqtt.log")),
-            "--logs", "true" if config.get("logs", False) else "false"
-        ]
+                   "python3", script_path,
+                   "--bisecur_user", str(config.get("bisecur_user", "")),
+                   "--bisecur_pw", str(config.get("bisecur_pw", "")),
+                   "--bisecur_ip", str(config.get("bisecur_ip", "")),
+                   "--bisecur_mac", str(config.get("bisecur_mac", "FF:FF:FF:FF:FF:FF")),
+                   "--src_mac", str(config.get("src_mac", "FF:FF:FF:FF:FF:FF")),
+                   "--mqtt_broker", str(config.get("mqtt_broker", "core-mosquitto")),
+                   "--mqtt_port", str(config.get("mqtt_port", 1883)),
+                   "--mqtt_clientid", str(config.get("mqtt_clientid", "mqtt2bisecur")),
+                   "--mqtt_username", str(config.get("mqtt_username", "bisecur")),
+                   "--mqtt_password", str(config.get("mqtt_password", "bisecur")),
+                   "--mqtt_tls", "true" if config.get("mqtt_tls", False) else "false",
+                   "--mqtt_topic_base", str(config.get("mqtt_topic_base", "bisecur2mqtt")),
+                   "--mqtt_topic_HA_discovery", str(config.get("mqtt_topic_HA_discovery", "homeassistant")),
+                   "--logfile", str(config.get("logfile", "/config/custom_components/bisecur2mqtt/bisecur2mqtt.log")),
+                   "--logs", "true" if config.get("logs", False) else "false",
+                   "--doors_port"
+               ] + list(map(str, config.get("doors_port", [0])))
         process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _LOGGER.info(f"Bisecur2MQTT: bisecur2mqtt.py run с PID {process.pid}")
         import time
