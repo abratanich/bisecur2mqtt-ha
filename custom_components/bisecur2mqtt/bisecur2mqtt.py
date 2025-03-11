@@ -16,25 +16,6 @@ from libs.pysecur3.client import MCPClient
 from libs.pysecur3.MCP import MCPSetState
 import libs.mqtt.client as paho
 
-COMMANDS = {
-    "get_door_state": lambda d: get_door_status(d),
-    "get_door_position": lambda d: get_door_status(d),
-    "up": lambda d: do_door_action("up", d),
-    "down": lambda d: do_door_action("down", d),
-    "open": lambda d: do_door_action("up", d),  # "open" = "up"
-    "close": lambda d: do_door_action("down", d),  # "close" = "down"
-    "stop": lambda d: do_door_action("stop", d),
-    "impulse": lambda d: do_door_action("impulse", d),
-    "partial": lambda d: do_door_action("partial", d),
-    "light": lambda d: do_door_action("light", d),
-    "get_ports": lambda _: get_ports(),
-    "get_version": lambda _: get_gw_version(),
-    "get_gw_version": lambda _: get_gw_version(),
-    "login": lambda _: do_gw_login(),
-    "sys_restart": lambda _: init_bisecur_gw(True),
-    "init_bisecur_gw": lambda _: init_bisecur_gw(True),
-}
-
 LOGFORMAT = "%(asctime)s [%(filename)s:%(lineno)3s]  %(message)s"
 
 parser = argparse.ArgumentParser(description="Bisecur2MQTT Service")
@@ -97,13 +78,31 @@ log.debug("🚀 DEBUG MODE")
 def do_command(cmd, set_door=None):
     global IS_ACTIVE_TASK
     IS_ACTIVE_TASK.set()
-
     cmd = cmd.lower().strip()
     publish_to_mqtt(f"send_command/command", datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), ts_only=True)
-
     resp = None
     try:
-        resp = COMMANDS.get(cmd, lambda _: f"Command '{cmd}' is not recognised")(set_door)
+        if cmd in "get_door_state get_door_position":
+            resp, _, _ = get_door_status(set_door)
+
+        elif cmd in "up down open close stop impulse partial light":
+            sanitised_cmd = cmd.replace("open", "up").replace("close", "down")
+            resp = do_door_action(sanitised_cmd, set_door)
+
+        elif cmd == "get_ports":
+            resp = get_ports()
+
+        elif cmd in "get_version get_gw_version":
+            resp = get_gw_version()
+
+        elif cmd == "login":
+            resp = do_gw_login()
+
+        elif cmd in "sys_restart init_bisecur_gw":
+            resp = init_bisecur_gw(True)
+
+        else:
+            resp = f"Command '{cmd} is not recognised"
         check_mcp_error(resp)
         publish_to_mqtt(f"send_command/response", resp)
     except Exception as ex:
@@ -122,11 +121,14 @@ def publish_to_mqtt(topic, payload, topic_base=args.mqtt_topic_base, qos=0, reta
             if not ts_only:
                 log.debug(f"---> MQTT pub: {topic_base}/{topic} {payload}")
                 MQTT_CLIENT_SUB.publish(f"{topic_base}/{topic}", payload, qos=qos, retain=retain)
+
             log.debug(f"---> MQTT pub: {topic_base}/{topic}_ts {datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}")
-            MQTT_CLIENT_SUB.publish(f"{topic_base}/{topic}_ts", datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), qos=qos,retain=retain)
+            MQTT_CLIENT_SUB.publish(f"{topic_base}/{topic}_ts", datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), qos=qos,
+                                    retain=retain)
         except Exception as ex:
             log.error(f"Error in topic: {topic}, payload: {payload}")
             log.error(ex)
+
     else:
         log.warning(f"Ignoring publish to broker as 'MQTT_CLIENT_PUB' not initialised ({topic} {payload})")
 
@@ -240,7 +242,7 @@ def get_door_status(set_door):
                 log.error(f"ERROR: {ex}")
             if "PORT_ERROR" in str(ex) or "Code: 10" in str(ex):
                 retries += 1
-                wait_time = 1.5
+                wait_time = 2.5
                 log.warning(f"🔄 Gateway busy (Retries {retries}/{MAX_RETRIES}) - wait {wait_time} sec...")
                 time.sleep(wait_time)
                 continue
@@ -250,7 +252,7 @@ def get_door_status(set_door):
                 break
             if CLI.last_error and retries < 5:
                 log.error(f"🔴 ERROR CLI error found {CLI.last_error}")
-                time.sleep(0.8)
+                time.sleep(.9)
                 retries += 1
             else:
                 break
@@ -509,12 +511,9 @@ def periodic_door_status_check():
                 resp, position, state = get_door_status(set_door)
                 if resp is None:
                     log.warning(f"⚠️ Failed to get gate state {set_door}")
-                else:
-                    log.info(f"✅ Gate {set_door}: position {position}, state {state}")
-                time.sleep(0.5)
+                time.sleep(.5)
             timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
             publish_to_mqtt("status/last_heartbeat", timestamp)
-            log.info(f"📡 Send heartbeat: {timestamp}")
         else:
             log.info("⏳ Skipping gate status check: command in progress.")
         time.sleep(CHECK_INTERVAL)
