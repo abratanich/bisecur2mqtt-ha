@@ -97,10 +97,7 @@ log.debug("🚀 DEBUG MODE")
 def do_command(cmd, set_door=None):
     global IS_ACTIVE_TASK
     IS_ACTIVE_TASK.set()
-
     cmd = cmd.lower().strip()
-    publish_to_mqtt(f"send_command/command", datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), ts_only=True)
-
     resp = None
     try:
         resp = COMMANDS.get(cmd, lambda _: f"Command '{cmd}' is not recognised")(set_door)
@@ -465,8 +462,8 @@ def init_ha_discovery(set_door):
                                       "get_ports", "login", "sys_reset"],
                "availability_topic": f"{MQTT_TOPIC_BASE}/{set_door}/state", "payload_available": "online",
                "payload_not_available": "offline", "unique_id": "bs_garage_door", "device_class": "garage",
-               "payload_close": "down", "payload_open": "up", "payload_stop": "impulse", "position_open": 100.0,
-               "position_closed": 0.0, "position_topic": f"{MQTT_TOPIC_BASE}/{set_door}/garage_door/position",
+               "payload_close": "down", "payload_open": "up", "payload_stop": "impulse", "position_open": 100,
+               "position_closed": 0, "position_topic": f"{MQTT_TOPIC_BASE}/{set_door}/garage_door/position",
                "state_topic": f"{MQTT_TOPIC_BASE}/{set_door}/garage_door/state",
                "command_topic": f"{MQTT_TOPIC_BASE}/send_command/command"}
     bisecur_mac = args.bisecur_mac.replace(':', '')
