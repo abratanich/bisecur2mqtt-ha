@@ -376,7 +376,7 @@ def check_mcp_error(resp):
 
     elif resp and hasattr(resp, "resp.payload") and hasattr(resp,
                                                             "resp.payload.command_id") and resp.payload.command_id == 1 and hasattr(
-            resp.payload.command, "error_code"):
+        resp.payload.command, "error_code"):
         log.error(
             f"MCP error '{resp.payload.command.error_code.value}' occurred (code: {resp.payload.command.error_code.name}) ")
         # Error 12 is Permission Denied
@@ -477,7 +477,8 @@ def init_ha_discovery(set_door):
     payload["sw_version"] = VERSION
     _, payload["gw_hw_version"] = get_gw_version()
 
-    publish_to_mqtt(f"cover/bisecur/{set_door}/config", json.dumps(payload), f"{args.mqtt_topic_HA_discovery}")
+    mqtt_topic_HA_discovery = args.mqtt_topic_HA_discovery
+    publish_to_mqtt(f"cover/bisecur/{set_door}/config", json.dumps(payload), f"{mqtt_topic_HA_discovery}")
     publish_to_mqtt("attributes/system_version", VERSION)
     publish_to_mqtt("attributes/gw_ip_address", bisecur_ip)
     publish_to_mqtt("attributes/gw_mac_address", bisecur_mac)
@@ -505,17 +506,18 @@ def init_bisecur_gw(is_restart=False):
 
 def periodic_door_status_check():
     while True:
-        if not IS_ACTIVE_TASK.is_set():
+        if not IS_ACTIVE_TASK.is_set():  # Проверяем, выполняется ли команда
             for set_door in args.doors_port:
                 log.info(f"🔄 Gate status survey -> {set_door}")
                 resp, position, state = get_door_status(set_door)
                 if resp is None:
                     log.warning(f"⚠️ Failed to get gate state {set_door}")
-                time.sleep(.5)
+
             timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
             publish_to_mqtt("status/last_heartbeat", timestamp)
         else:
             log.info("⏳ Skipping gate status check: command in progress.")
+
         time.sleep(CHECK_INTERVAL)
 
 
