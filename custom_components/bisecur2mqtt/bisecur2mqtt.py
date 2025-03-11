@@ -240,7 +240,7 @@ def get_door_status(set_door):
                 log.error(f"ERROR: {ex}")
             if "PORT_ERROR" in str(ex) or "Code: 10" in str(ex):
                 retries += 1
-                wait_time = 1.5
+                wait_time = 2.5
                 log.warning(f"🔄 Gateway busy (Retries {retries}/{MAX_RETRIES}) - wait {wait_time} sec...")
                 time.sleep(wait_time)
                 continue
