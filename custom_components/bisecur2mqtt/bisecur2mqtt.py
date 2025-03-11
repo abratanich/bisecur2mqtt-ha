@@ -436,7 +436,7 @@ def on_disconnect(mosq, userdata, rc):
 
 def clear_command_topic():
     log.info("📡 Clearing MQTT command topic...")
-    MQTT_CLIENT_PUB.publish(f"{MQTT_TOPIC_BASE}/send_command/command", " ", qos=0, retain=True)
+    MQTT_CLIENT_PUB.publish(f"{MQTT_TOPIC_BASE}/send_command/command", "\0", qos=0, retain=True)
 
 
 def restart_script():
