@@ -21,8 +21,8 @@ COMMANDS = {
     "get_door_position": lambda d: get_door_status(d),
     "up": lambda d: do_door_action("up", d),
     "down": lambda d: do_door_action("down", d),
-    "open": lambda d: do_door_action("up", d),  # "open" = "up"
-    "close": lambda d: do_door_action("down", d),  # "close" = "down"
+    "open": lambda d: do_door_action("up", d),
+    "close": lambda d: do_door_action("down", d),
     "stop": lambda d: do_door_action("stop", d),
     "impulse": lambda d: do_door_action("impulse", d),
     "partial": lambda d: do_door_action("partial", d),
@@ -173,7 +173,7 @@ def get_ports():
     try:
         resp = CLI.jcmp(cmd_mcp)
         ports = resp.payload.payload
-        ports = ast.literal_eval(ports.decode("utf-8"))  # convert from binary
+        ports = ast.literal_eval(ports.decode("utf-8"))
 
         log.info(f"Ports for user 0: {json.dumps(ports, indent=4, sort_keys=True)}")
         publish_to_mqtt("attributes/user0_ports", json.dumps(ports))
@@ -474,7 +474,6 @@ def init_ha_discovery(set_door):
     payload["connections"] = ["mac", bisecur_mac, "ip", bisecur_ip]
     payload["sw_version"] = VERSION
     _, payload["gw_hw_version"] = get_gw_version()
-
     publish_to_mqtt(f"cover/bisecur/{set_door}/config", json.dumps(payload), f"{args.mqtt_topic_HA_discovery}")
     publish_to_mqtt("attributes/system_version", VERSION)
     publish_to_mqtt("attributes/gw_ip_address", bisecur_ip)
@@ -579,12 +578,12 @@ def main():
             log.info(f"🔄 MQTT_CLIENT_PUB: {MQTT_CLIENT_PUB}")
             MQTT_CLIENT_SUB.loop_forever()
             log.error("❌ loop_forever() unexpectedly exited!")
-        except Exception as e:
-            log.error(f"❌ loop_forever() crashed: {e}")
-            traceback.print_exc()
         except socket.error:
             print("... doing sleep(5)")
             time.sleep(5)
+        except Exception as e:
+            log.error(f"❌ loop_forever() crashed: {e}")
+            traceback.print_exc()
         except KeyboardInterrupt:
             log.info("Shutting down connections")
         finally:
