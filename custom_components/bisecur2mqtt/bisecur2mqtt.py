@@ -73,6 +73,8 @@ POS_TRACKING_THREAD = None
 DO_EXIT_THREAD = False
 MAX_RETRIES = 10
 CHECK_INTERVAL = 30
+GATEWAY_VERSION = None
+GATEWAY_RESP = None
 
 for handler in log.root.handlers[:]:
     log.root.removeHandler(handler)
@@ -114,25 +116,36 @@ def do_command(cmd, set_door=None):
         IS_ACTIVE_TASK.clear()
 
 
-def publish_to_mqtt(topic, payload, topic_base=args.mqtt_topic_base, qos=0, retain=False, ts_only=False):
-    if MQTT_CLIENT_SUB:
-        if not isinstance(payload, str):
-            payload = str(payload)
+def publish_to_mqtt(topic, payload, topic_base=args.mqtt_topic_base, qos=0, retain=False, ts_only=False, retries=3):
+    if not MQTT_CLIENT_SUB:
+        log.warning(f"⚠️ MQTT client not initializing: {topic} {payload}")
+        return
+
+    full_topic = f"{topic_base}/{topic}"
+    timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+    for attempt in range(retries):
         try:
             if not ts_only:
-                log.debug(f"---> MQTT pub: {topic_base}/{topic} {payload}")
-                MQTT_CLIENT_SUB.publish(f"{topic_base}/{topic}", payload, qos=qos, retain=retain)
-            log.debug(f"---> MQTT pub: {topic_base}/{topic}_ts {datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}")
-            MQTT_CLIENT_SUB.publish(f"{topic_base}/{topic}_ts", datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), qos=qos,retain=retain)
+                log.debug(f"📡 Publish in MQTT: {full_topic} {payload}")
+                MQTT_CLIENT_SUB.publish(full_topic, str(payload), qos=qos, retain=retain)
+
+            MQTT_CLIENT_SUB.publish(f"{full_topic}_ts", timestamp, qos=qos, retain=retain)
+            return
         except Exception as ex:
-            log.error(f"Error in topic: {topic}, payload: {payload}")
-            log.error(ex)
-    else:
-        log.warning(f"Ignoring publish to broker as 'MQTT_CLIENT_PUB' not initialised ({topic} {payload})")
+            log.error(f"❌ Error publish in MQTT ({attempt+1}/{retries}): {ex}")
+            time.sleep(1)
+
+    log.error(f"🚨 Failed to send MQTT message after {retries} attempts: {full_topic} {payload}")
 
 
 def get_gw_version():
+    global GATEWAY_VERSION
+    global GATEWAY_RESP
     retries = 0
+
+    if GATEWAY_VERSION is not None:
+        return GATEWAY_RESP, GATEWAY_VERSION
 
     while retries < MAX_RETRIES:
         try:
@@ -141,21 +154,25 @@ def get_gw_version():
                     log.error("⚠️ Error: CLI not initialized")
                     return None, None
 
+                log.info("📡 Request version Bisecur Gateway...")
                 resp = CLI.get_gw_version()
             if not resp or not hasattr(resp.payload, "command") or not hasattr(resp.payload.command, "gw_version"):
-                log.error("❌ Error: Invalid response from `get_gw_version()`")
-                return None, None
+                log.error("❌ Invalid response from `get_gw_version()`")
+                retries += 1
+                continue
 
-            version = resp.payload.command.gw_version
-            log.info(f"✅ Gateway HW Version: {version}")
-            publish_to_mqtt("attributes/gw_hw_version", version)
-            return resp, version
+            GATEWAY_VERSION = resp.payload.command.gw_version
+            GATEWAY_RESP = resp
+            log.info(f"✅ Gateway HW Version: {GATEWAY_VERSION}")
+
+            publish_to_mqtt("attributes/gw_hw_version", GATEWAY_VERSION)
+            return GATEWAY_RESP, GATEWAY_VERSION
 
         except Exception as e:
             error_msg = str(e)
             if "PORT_ERROR" in error_msg or "Code: 10" in error_msg:
                 retries += 1
-                wait_time = 2 * retries
+                wait_time = min(5, 1.5 * retries)
                 log.warning(f"🔄Gateway busy (Retries {retries}/{MAX_RETRIES}) - wait {wait_time} sec...")
                 time.sleep(wait_time)
                 continue
@@ -194,18 +211,22 @@ def check_broken_pipe(err_msg):
 
 
 def get_door_status(set_door):
+    global last_request_time
+
     set_door = int(set_door)
     retries = 0
-    global last_request_time
+
     if set_door not in last_request_time:
         last_request_time[set_door] = 0
 
     while retries < MAX_RETRIES:
         now = time.time()
+
         if now - last_request_time[set_door] < 2:
             log.warning(f"⏳ Skipping get_door_status({set_door}) to prevent flooding.")
-            time.sleep(1)
+            time.sleep(1.5)
             continue
+
         if not gateway_lock.acquire(blocking=False):
             log.warning(f"🚧 Get door status({set_door}) skipped because lock is busy!")
             return None, -1, None
@@ -213,9 +234,11 @@ def get_door_status(set_door):
             if CLI is None:
                 log.error("⚠️ Error: CLI not initialized")
                 return None, -1, None
+
             log.info(f"📡 Sending a get transition request({set_door})...")
             resp = CLI.get_transition(set_door)
             state = None
+
             if resp and resp.payload and hasattr(resp.payload.command, "percent_open"):
                 position = resp.payload.command.percent_open
                 if position == 0:
@@ -229,10 +252,13 @@ def get_door_status(set_door):
             else:
                 position = -1
                 log.warning(f"get_transition response has no 'percentage_open' attribute (resp: {resp})")
+
             log.info(f"🚪Door -> {set_door} position: {position} and state {state} to MQTT....")
             publish_to_mqtt(f"garage_door/{set_door}/position", position)
+
             if state:
                 publish_to_mqtt(f"garage_door/{set_door}/state", state)
+            last_request_time[set_door] = time.time()
             return resp, position, state
         except Exception as ex:
             if DEBUG:
@@ -240,7 +266,7 @@ def get_door_status(set_door):
                 log.error(f"ERROR: {ex}")
             if "PORT_ERROR" in str(ex) or "Code: 10" in str(ex):
                 retries += 1
-                wait_time = 2.5
+                wait_time = min(5, 1.5 * retries)
                 log.warning(f"🔄 Gateway busy (Retries {retries}/{MAX_RETRIES}) - wait {wait_time} sec...")
                 time.sleep(wait_time)
                 continue
@@ -502,22 +528,23 @@ def init_bisecur_gw(is_restart=False):
 
 def periodic_door_status_check():
     while True:
-        if not IS_ACTIVE_TASK.is_set():
-            for set_door in args.doors_port:
-                log.info(f"🔄 Gate status survey -> {set_door}")
-                resp, position, state = get_door_status(set_door)
-                if resp is None:
-                    log.warning(f"⚠️ Failed to get gate state {set_door}")
-                else:
-                    log.info(f"✅ Gate {set_door}: position {position}, state {state}")
-                time.sleep(0.5)
-            timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-            publish_to_mqtt("status/last_heartbeat", timestamp)
-            log.info(f"📡 Send heartbeat: {timestamp}")
-        else:
+        if IS_ACTIVE_TASK.is_set():
             log.info("⏳ Skipping gate status check: command in progress.")
-        time.sleep(CHECK_INTERVAL)
+            time.sleep(1)
+            continue
 
+        for set_door in args.doors_port:
+            log.info(f"🔄 Gate status survey -> {set_door}")
+            resp, position, state = get_door_status(set_door)
+
+            if resp is None:
+                log.warning(f"⚠️ Failed to get gate state {set_door}")
+            else:
+                log.info(f"✅ Gate {set_door}: position {position}, state {state}")
+
+            time.sleep(0.2)
+
+        time.sleep(max(5, CHECK_INTERVAL - len(args.doors_port) * 0.2))
 
 def main():
     global MQTT_CLIENT_SUB, MQTT_CLIENT_PUB
