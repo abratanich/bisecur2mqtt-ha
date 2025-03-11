@@ -56,6 +56,8 @@ parser.add_argument("--logs", type=lambda x: x.lower() == 'true', default=False)
 parser.add_argument("--doors_port", nargs='+', type=int, default=[0])
 args = parser.parse_args()
 
+GATEWAY_VERSION = None
+GATEWAY_VERSION_RESP  = None
 LOG_TXT_ENABLED = args.logs
 LOGFILE = args.logfile
 MQTT_TOPIC_BASE = args.mqtt_topic_base
@@ -129,7 +131,12 @@ def publish_to_mqtt(topic, payload, topic_base=args.mqtt_topic_base, qos=0, reta
 
 
 def get_gw_version():
+    global GATEWAY_VERSION
+    global GATEWAY_VERSION_RESP
     retries = 0
+
+    if GATEWAY_VERSION is not None:
+        return GATEWAY_VERSION_RESP, GATEWAY_VERSION
 
     while retries < MAX_RETRIES:
         try:
@@ -143,10 +150,12 @@ def get_gw_version():
                 log.error("❌ Error: Invalid response from `get_gw_version()`")
                 return None, None
 
-            version = resp.payload.command.gw_version
-            log.info(f"✅ Gateway HW Version: {version}")
-            publish_to_mqtt("attributes/gw_hw_version", version)
-            return resp, version
+            GATEWAY_VERSION = resp.payload.command.gw_version
+            GATEWAY_VERSION_RESP = resp
+            log.info(f"✅ Gateway HW Version: {GATEWAY_VERSION}")
+            publish_to_mqtt("attributes/gw_hw_version", GATEWAY_VERSION)
+
+            return GATEWAY_VERSION_RESP, GATEWAY_VERSION
 
         except Exception as e:
             error_msg = str(e)
@@ -400,6 +409,7 @@ def on_message(mosq, userdata, msg):
 
 
 def on_connect(client, userdata, flags, rc):
+    clear_command_topic()
     log.info(f"📡 Connected to MQTT broker (RC={rc}). Subscribing to command topic.")
     if rc == 0:
         sub_topic = f"{MQTT_TOPIC_BASE}/send_command/command"
@@ -426,7 +436,7 @@ def on_disconnect(mosq, userdata, rc):
 
 def clear_command_topic():
     log.info("📡 Clearing MQTT command topic...")
-    MQTT_CLIENT_PUB.publish(f"{MQTT_TOPIC_BASE}/send_command/command", "", qos=0, retain=True)
+    MQTT_CLIENT_PUB.publish(f"{MQTT_TOPIC_BASE}/send_command/command", " ", qos=0, retain=True)
 
 
 def restart_script():
