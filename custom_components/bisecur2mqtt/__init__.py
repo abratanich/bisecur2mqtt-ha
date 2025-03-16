@@ -42,14 +42,14 @@ def start_bisecur_service(config):
             stderr_output = process.stderr.read().decode()
             _LOGGER.error(f"Bisecur2MQTT: Script crashed! Error output:\n{stderr_output}")
         else:
-            _LOGGER.warning("Bisecur2MQTT: Script seems to be running fine.")
+            _LOGGER.info("Bisecur2MQTT: Script seems to be running fine.")
 
     except Exception as e:
         _LOGGER.error(f"Error starting bisecur2mqtt.py: {e}")
 
 
 async def async_setup(hass: HomeAssistant, config: dict):
-    _LOGGER.warning("Bisecur2MQTT: async_setup() run...")
+    _LOGGER.info("Bisecur2MQTT: async_setup() run...")
 
     if DOMAIN not in config:
         _LOGGER.error("Bisecur2MQTT: Missing configuration in configuration.yaml!")
