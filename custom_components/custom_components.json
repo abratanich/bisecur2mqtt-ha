@@ -1,0 +1,4 @@
+{
+  "version": "1.0.3",
+  "custom_components": ["bisecur2mqtt"]
+}

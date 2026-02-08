@@ -1,0 +1,11 @@
+{
+  "domain": "bisecur2mqtt",
+  "name": "Bisecur2MQTT",
+  "version": "1.0.1",
+  "config_flow": true,
+  "documentation": "https://github.com/abratanich/bisecur2mqtt-ha",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@abratanich"],
+  "logo": "icons/logo.png"
+}

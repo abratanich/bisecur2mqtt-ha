@@ -1,0 +1,6 @@
+start:
+  description: "Run service Bisecur2MQTT"
+stop:
+  description: "Stop service Bisecur2MQTT"
+restart:
+  description: "Restart service Bisecur2MQTT"

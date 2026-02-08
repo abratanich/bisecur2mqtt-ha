@@ -1,0 +1,21 @@
+name: "Bisecur2MQTT"
+version: "1.0.0"
+slug: "bisecur2mqtt"
+description: "An add-on to integrate Bisecur2MQTT with Home Assistant."
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+startup: application
+boot: auto
+hassio_api: true
+options:
+  mqtt_host: "homeassistant.local"
+  mqtt_port: 1883
+schema:
+  mqtt_host: str
+  mqtt_port: int
+init: false
+watchdog: false

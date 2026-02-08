@@ -1,0 +1,11 @@
+{
+  "name": "Bisecur2MQTT",
+  "country": "UA",
+  "domain": "bisecur2mqtt",
+  "homeassistant": "2023.1.0",
+  "render_readme": true,
+  "filename": "bisecur2mqtt.zip",
+  "source": "https://github.com/abratanich/bisecur2mqtt-ha",
+  "zip_release": false,
+  "icon": "custom_components/bisecur2mqtt/icons/logo.png"
+}
